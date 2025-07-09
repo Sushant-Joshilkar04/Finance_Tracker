@@ -1,4 +1,3 @@
-Here is the updated `README.md` reflecting **Spring Boot as the backend** instead of Next.js API routes:
 
 ---
 
