@@ -16,22 +16,28 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/budgets")
-@CrossOrigin(origins = "http://localhost:3000")
 @Validated
 public class BudgetController {
 
     @Autowired
     private BudgetService service;
 
-    // GET budgets (optionally filtered by month)
-    @GetMapping
-    public List<Budget> getBudgets(@RequestParam(required = false) String month) {
-        return service.getAll(Optional.ofNullable(month));
+    // Test endpoint
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("Budget Controller is working!");
     }
 
-    // POST: Create new budget
+    @GetMapping
+    public ResponseEntity<List<Budget>> getBudgets(@RequestParam(required = false) String month) {
+        System.out.println("GET /api/budgets called with month: " + month);
+        List<Budget> budgets = service.getAll(Optional.ofNullable(month));
+        return ResponseEntity.ok(budgets);
+    }
+
     @PostMapping
     public ResponseEntity<Budget> createBudget(@Valid @RequestBody Budget b) {
+        System.out.println("POST /api/budgets called with: " + b);
         try {
             Budget saved = service.create(b);
             return ResponseEntity.status(201).body(saved);
@@ -43,24 +49,23 @@ public class BudgetController {
         }
     }
 
-    // PUT: Update budget by ID
-    @PutMapping("/{id}")
-    public ResponseEntity<Budget> updateBudget(@PathVariable String id,
-                                               @Valid @RequestBody Budget b) {
+    @PutMapping
+    public ResponseEntity<Budget> updateBudget(@Valid @RequestBody Budget b) {
+        System.out.println("PUT /api/budgets called with: " + b);
         try {
-            Budget updated = service.update(id, b);
+            Budget updated = service.update(b.getId(), b);
             return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(
                 org.springframework.http.HttpStatus.NOT_FOUND,
-                "Budget not found with ID: " + id, ex
+                "Budget not found with ID: " + b.getId(), ex
             );
         }
     }
 
-    // DELETE: Delete budget by ID
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteBudget(@PathVariable String id) {
+    @DeleteMapping
+    public ResponseEntity<Void> deleteBudget(@RequestParam String id) {
+        System.out.println("DELETE /api/budgets called with id: " + id);
         try {
             service.delete(id);
             return ResponseEntity.noContent().build();

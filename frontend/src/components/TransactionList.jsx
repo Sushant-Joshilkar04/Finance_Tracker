@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { updateTransaction } from '@/app/api/transactions';
 
 export default function TransactionList({ transactions, onEdit, onDelete }) {
   const [editId, setEditId] = useState(null);
@@ -51,19 +52,12 @@ export default function TransactionList({ transactions, onEdit, onDelete }) {
     }
 
     try {
-      const response = await fetch(`/api/transactions/${transaction.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: parseFloat(editAmount),
-          description: editDescription.trim(),
-          date: editDate,
-          category: editCategory,
-        }),
+      await updateTransaction(transaction.id, {
+        amount: parseFloat(editAmount),
+        description: editDescription.trim(),
+        date: editDate,
+        category: editCategory,
       });
-      if (!response.ok) throw new Error('Failed to update transaction');
       if (onEdit) await onEdit();
     } catch (err) {
       alert('Failed to update transaction');

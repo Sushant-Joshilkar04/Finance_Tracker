@@ -16,6 +16,20 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import DashboardSummary from '@/components/DashboardSummary';
 
+import { 
+  getTransactions, 
+  createTransaction, 
+  updateTransaction, 
+  deleteTransaction 
+} from '@/app/api/transactions';
+
+import { 
+  getBudgets, 
+  createBudget, 
+  updateBudget, 
+  deleteBudget 
+} from '@/app/api/budget';
+
 export default function Home() {
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -36,12 +50,12 @@ export default function Home() {
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch('/api/transactions');
-      if (!response.ok) throw new Error('Failed to fetch transactions');
-      const data = await response.json();
-      setTransactions(data.sort((a, b) => new Date(b.date) - new Date(a.date)));
-    } catch (err) {
-      toast.error('Failed to load transactions');
+      const data = await getTransactions();
+      // Sort by date descending
+      const sortedTransactions = data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setTransactions(sortedTransactions);
+    } catch (error) {
+      toast.error(error.message || 'Failed to load transactions');
     } finally {
       setLoading(false);
     }
@@ -49,104 +63,85 @@ export default function Home() {
 
   const fetchBudgets = async () => {
     try {
-      const response = await fetch(`/api/budgets?month=${selectedMonth}`);
-      if (!response.ok) throw new Error('Failed to fetch budgets');
-      const data = await response.json();
+      const data = await getBudgets(selectedMonth);
       setBudgets(data);
-    } catch (err) {
-      toast.error('Failed to load budgets');
+    } catch (error) {
+      toast.error(error.message || 'Failed to load budgets');
     }
   };
 
   const handleAddTransaction = async (formData) => {
     try {
-      const response = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      if (!response.ok) throw new Error('Failed to add transaction');
+      await createTransaction(formData);
       await fetchTransactions();
       toast.success('Transaction added successfully!');
-    } catch (err) {
-      toast.error('Failed to add transaction');
+      setPrefillCategory(''); // Clear prefill after successful add
+    } catch (error) {
+      toast.error(error.message || 'Failed to add transaction');
     }
   };
 
   const handleEditTransaction = async (formData) => {
     try {
-      const response = await fetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      if (!response.ok) throw new Error('Failed to update transaction');
+      await updateTransaction(editingTransaction.id, formData);
       await fetchTransactions();
       setEditingTransaction(null);
       toast.success('Transaction updated successfully!');
-    } catch (err) {
-      toast.error('Failed to update transaction');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update transaction');
     }
   };
 
   const handleDeleteTransaction = async (id) => {
     if (!confirm('Are you sure you want to delete this transaction?')) return;
+    
     try {
-      const response = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to delete transaction');
+      await deleteTransaction(id);
       await fetchTransactions();
       toast.success('Transaction deleted successfully!');
-    } catch (err) {
-      toast.error('Failed to delete transaction');
+    } catch (error) {
+      toast.error(error.message || 'Failed to delete transaction');
     }
   };
 
   const handleAddBudget = async (formData) => {
     try {
-      const response = await fetch('/api/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      if (!response.ok) throw new Error('Failed to add budget');
+      await createBudget(formData);
       await fetchBudgets();
       toast.success('Budget set successfully!');
-    } catch (err) {
-      toast.error('Failed to set budget');
+    } catch (error) {
+      toast.error(error.message || 'Failed to set budget');
     }
   };
 
   const handleEditBudget = async (formData) => {
     try {
-      const response = await fetch('/api/budgets', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, id: editingBudget.id }),
-      });
-      if (!response.ok) throw new Error('Failed to update budget');
+      const budgetData = { ...formData, id: editingBudget.id };
+      await updateBudget(budgetData);
       await fetchBudgets();
       setEditingBudget(null);
       toast.success('Budget updated successfully!');
-    } catch (err) {
-      toast.error('Failed to update budget');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update budget');
     }
   };
 
   const handleDeleteBudget = async (id) => {
     if (!confirm('Are you sure you want to delete this budget?')) return;
+    
     try {
-      const response = await fetch(`/api/budgets?id=${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to delete budget');
+      await deleteBudget(id);
       await fetchBudgets();
       toast.success('Budget deleted successfully!');
-    } catch (err) {
-      toast.error('Failed to delete budget');
+    } catch (error) {
+      toast.error(error.message || 'Failed to delete budget');
     }
   };
 
   const handleCancelEdit = () => {
     setEditingTransaction(null);
     setEditingBudget(null);
+    setPrefillCategory('');
   };
 
   const handleAddCategoryExpense = (category) => {
@@ -216,53 +211,52 @@ export default function Home() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {
-                    Array.from({ length: 12 }).map((_, i) => {
-                      const month = new Date(new Date().setMonth(new Date().getMonth() - i));
-                      const monthStr = month.toISOString().slice(0, 7);
-                      return (
-                        <SelectItem key={monthStr} value={monthStr}>
-                          {month.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                        </SelectItem>
-                      );
-                    })
-                  }
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const month = new Date(new Date().setMonth(new Date().getMonth() - i));
+                    const monthStr = month.toISOString().slice(0, 7);
+                    return (
+                      <SelectItem key={monthStr} value={monthStr}>
+                        {month.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
-                        </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                          <div className="lg:col-span-1">
-                            <BudgetForm
-                              onSubmit={editingBudget ? handleEditBudget : handleAddBudget}
-                              initialData={editingBudget || { month: selectedMonth }}
-                              onCancel={handleCancelEdit}
-                            />
-                          </div>
-                          <div className="lg:col-span-2">
-                            <BudgetList
-                              budgets={budgets}
-                              onEdit={setEditingBudget}
-                              onDelete={handleDeleteBudget}
-                            /><br/>
-                            <BudgetVsActualChart
-                              budgets={budgets}
-                              transactions={transactions.filter(
-                                (t) => t.date.slice(0, 7) === selectedMonth
-                              )}
-                            />
-                          </div>
-                        </div>
-                      </TabsContent>
-            
-                      <TabsContent value="insights" className="space-y-6">
-                        <SpendingInsights
-                          transactions={transactions}
-                          budgets={budgets}
-                          selectedMonth={selectedMonth}
-                        />
-                      </TabsContent>
-                    </Tabs>
-                  </div>
-                </div>
-              );
-            }
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1">
+                <BudgetForm
+                  onSubmit={editingBudget ? handleEditBudget : handleAddBudget}
+                  initialData={editingBudget || { month: selectedMonth }}
+                  onCancel={handleCancelEdit}
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <BudgetList
+                  budgets={budgets}
+                  onEdit={setEditingBudget}
+                  onDelete={handleDeleteBudget}
+                />
+                <br/>
+                <BudgetVsActualChart
+                  budgets={budgets}
+                  transactions={transactions.filter(
+                    (t) => t.date.slice(0, 7) === selectedMonth
+                  )}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="insights" className="space-y-6">
+            <SpendingInsights
+              transactions={transactions}
+              budgets={budgets}
+              selectedMonth={selectedMonth}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
